@@ -7,15 +7,13 @@ class RAGEngine:
         self.retriever = FAISSRetriever()
         self.llm = GroqClient(model="llama-3.1-8b-instant")
 
-    def ask(self, question: str, top_k: int = 3) -> str:
-        # 1. Retrieve the raw chunks from FAISS
+    def ask(self, question: str, top_k: int = 6) -> str:
         print(f"\n[INFO] Searching vector space for: '{question}'")
         hits = self.retriever.search(question, top_k=top_k)
         
         if not hits:
             return "No relevant context found in the database."
 
-        # 2. Construct the context payload
         context_blocks = []
         for hit in hits:
             context_blocks.append(
@@ -24,11 +22,13 @@ class RAGEngine:
         
         context_str = "\n\n".join(context_blocks)
 
-        # 3. The strict RAG Prompt
         prompt = f"""You are an expert machine learning researcher. Answer the user's question based strictly on the provided context. 
 
-If the context does not contain the answer, explicitly state that you lack the context to answer. Do not hallucinate external knowledge. 
-When answering, briefly cite the source document used.
+CRITICAL CONSTRAINTS:
+1. If the context does not contain the answer for any part of the question, explicitly state exactly what is missing.
+2. Do not assume, extrapolate, or guess properties of one entity based on another. 
+3. If an optimization technique, hyperparameter, or configuration is not explicitly stated in the context for an architecture, do not claim it is 'likely' or 'assumed' to be identical to another architecture.
+4. Cite the source document and page number for every fact used.
 
 CONTEXT:
 {context_str}
@@ -36,7 +36,6 @@ CONTEXT:
 QUESTION:
 {question}
 """
-        # 4. Generate the synthesis
         print("[INFO] Context retrieved. Synthesizing answer...\n")
         messages = [{"role": "user", "content": prompt}]
         response = self.llm.generate_content(messages, temperature=0.1)
